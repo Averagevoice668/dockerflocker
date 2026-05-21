@@ -6,6 +6,7 @@ namespace ChickenAPI.Model
     public class Chicken
     {
         [Key]
+        [Column("ChickenID")]
         public int ChickId { get; set; }
 
         [Required]
