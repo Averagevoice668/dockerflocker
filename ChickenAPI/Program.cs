@@ -14,7 +14,7 @@ namespace ChickenAPI
                 options.UseSqlServer(Environment.GetEnvironmentVariable("SQL_CONNECTION_STRING")));
 
             builder.Services.AddControllers();
-            builder.Services.AddOpenApi();  
+            builder.Services.AddOpenApi();
             var app = builder.Build();
             if (true)
             {

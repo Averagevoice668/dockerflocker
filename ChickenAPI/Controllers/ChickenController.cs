@@ -56,7 +56,7 @@ namespace ChickenAPI.Controllers
             }
             catch (DbUpdateConcurrencyException)
             {
-                if(!_context.Chicken.Any(e => e.ChickId == id))
+                if (!_context.Chicken.Any(e => e.ChickId == id))
                 {
                     return NotFound();
                 }
