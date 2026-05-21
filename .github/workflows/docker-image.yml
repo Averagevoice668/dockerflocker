@@ -1,4 +1,4 @@
-name: Docker Image CI
+name: Advanced CI/CD Integration Pipeline
 
 on:
   push:
@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
 
@@ -21,19 +21,18 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-
-    - name: Setup .NET SDK
+      
+    - name: Run .NET SDK
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: '10.0.x'
-        cache: true
+        cache: 'true'
         cache-dependency-path: '**/*.csproj'
-      
 
-    - name: Verify code formatting
+    - name: Verify Code Formatting
       run: dotnet format --verify-no-changes --severity warn
-
-    - name: Static code analysis
+      
+    - name: Static Code Analysis
       run: dotnet build --configuration Release /warnaserror
 
   compile-and-build:
@@ -42,68 +41,69 @@ jobs:
     needs: code-quality
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v4  
 
     - name: Setup .NET SDK
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: '10.0.x'
-        cache: true
+        cache: 'true'
         cache-dependency-path: '**/*.csproj'
-    
-    - name: Build Application Constrainers
+
+    - name: Build Application Containers
       run: docker compose build
 
-  intergration-testing:
-    name: System Integration Verification
+  integration-testing:
+    name: Integration Testing
     runs-on: ubuntu-latest
     needs: compile-and-build
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
-    
+      uses: actions/checkout@v4  
+
     - name: Setup .NET SDK
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: '10.0.x'
-        cache: true
+        cache: 'true'
         cache-dependency-path: '**/*.csproj'
-    
+
     - name: Build and Launch Application Mesh
       run: docker compose up --build -d
 
     - name: Grace Period for Database Boot
-      run: |
-        echo "Giving Mircosoft SQL Server 25 seconds to complete table setup..."
+      run:
+        echo "Giving Microsoft SQL Server time to initialize..."
         sleep 25
-    
+
     - name: Wait for API Readiness
       run: |
-        echo "Waiting for ChickenAPI to wake up at http://localhost:8080..."
-        timeout 60s sh -c 'until curl -sSf http://localhost:8080/GetEggs > /dev/null; do sleep 2; done'
+        echo "Waiting for ChickenAPI to wake up at http://localhost:8080/api/chicken..."
+        timeout 60s sh -c 'until curl -sSf http://localhost:8080/api/chicken > /dev/null; do sleep 2; done'
         echo "ChickenAPI is up and running!"
 
     - name: Integration Step 1 - Seed Data via API
       run: |
-        echo "Posting a new chicken payload to the database..."
-        curl -X POST http://localhost:8080/api/Chicken \
+        echo "Posting a new chicken payload to the API..."
+        curl --fail --verbose \
+          -X POST http://localhost:8080/Chicken \
           -H "Content-Type: application/json" \
-          -d '{"name": "Clucky", "breed": "Rhode Island Red"}' 
-          --fail --verbose
+          -d '{"name": "Clucky", "breed": "Rhode Island Red"}'
 
-    - name: Integration Step 2 - Verify Front-End MVC Data Rendering
+    - name: Integration Step 2 - Verify Front-End Rendering
       run: |
-        echo "Querying the MVC web application home page on port 80..."
-        MVC_RESPONSE=$(curl -s http://localhost:80/)
+       echo "Querying the MVC web application home page on port 80..."
+       MVC_RESPONSE=$(curl -s http://localhost:80/)
 
-        echo "Asserting that the front-end view successfully displays the dynamic API string context..."
-        if echo "$MVC_RESPONSE" | grep -q "Clucky"; then
-          echo "Success: The MVC view correctly rendered the API data context."
-        else
-          echo "Failure: The MVC view did not render the expected API data context."
-          exit 1
-        fi
-      
+       echo "Asserting that the MVC application is rendering the chicken data..."
+       if echo "$MVC_RESPONSE" | grep -q "Clucky"; then
+         echo "Success: Found 'Clucky' in the MVC response!"
+       else
+         echo "Error: 'Clucky' not found in the MVC response. Response was:"
+         echo "$MVC_RESPONSE"
+         exit 1
+       fi
+
     - name: Tear Down Mesh and Logs
       if: always()
       run: |
@@ -113,12 +113,11 @@ jobs:
         docker compose down --volumes
 
   cd-deployment:
-      name: Production Cloud Deployment
-      runs-on: ubuntu-latest
-      needs: intergration-testing
-      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-      environment: Production
-      steps:
-      - name: Execute Server Infrastructure Sync
-        run: |
-          echo "All automated test passed..."
+    name: Production Cloud Deployment
+    runs-on: ubuntu-latest
+    needs: integration-testing
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    steps:
+    - name: Execute Server Infrastructure Sync
+      run: |
+        echo "All automated tests passed cleanly. Initiating infrastructure synchronization with Terraform..."
